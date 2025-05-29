@@ -10,7 +10,7 @@ use libp2p::swarm::behaviour::toggle::Toggle;
 use libp2p::swarm::NetworkBehaviour;
 use libp2p::{
     allow_block_list, connection_limits, identify, kad, memory_connection_limits, ping, PeerId,
-    Swarm,
+    Swarm, upnp,
 };
 use nockapp::NockAppError;
 use tracing::{debug, trace};
@@ -105,6 +105,8 @@ pub struct NockchainBehaviour {
     pub peer_store: libp2p::peer_store::Behaviour<libp2p::peer_store::memory_store::MemoryStore>,
     /// Actual comms
     pub request_response: cbor::Behaviour<NockchainRequest, NockchainResponse>,
+    /// NAT UPNP support
+    pub upnp: upnp::tokio::Behaviour,
 }
 
 impl NockchainBehaviour {
@@ -163,11 +165,14 @@ impl NockchainBehaviour {
                 connection_limits: connection_limits_behaviour,
                 memory_connection_limits,
                 peer_store: peer_store_behaviour,
+                upnp: upnp::tokio::Behaviour::default(),
             }
         }
     }
 }
 
+use std::net::{IpAddr, SocketAddr};
+use libp2p::multiaddr::Protocol;
 /// # Create a swarm and set it to listen
 ///
 /// This function initializes a libp2p swarm with the provided keypair and binding addresses.
@@ -179,6 +184,24 @@ impl NockchainBehaviour {
 ///
 /// # Returns
 /// A Result containing the Swarm instance or an error if any operation fails
+
+/// Converts a Multiaddr to a SocketAddr if possible.
+fn multiaddr_to_socketaddr(addr: &Multiaddr) -> Result<SocketAddr, std::io::Error> {
+    let mut ip = None;
+    let mut port = None;
+    for p in addr.iter() {
+        match p {
+            Protocol::Ip4(ipv4) => ip = Some(IpAddr::V4(ipv4)),
+            Protocol::Ip6(ipv6) => ip = Some(IpAddr::V6(ipv6)),
+            Protocol::Tcp(p) => port = Some(p),
+            _ => {}
+        }
+    }
+    match (ip, port) {
+        (Some(ip), Some(port)) => Ok(SocketAddr::new(ip, port)),
+        _ => Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid Multiaddr")),
+    }
+}
 pub fn start_swarm(
     keypair: Keypair,
     bind: Vec<Multiaddr>,
@@ -214,6 +237,7 @@ pub fn start_swarm(
     Ok(swarm)
 }
 
+
 // TODO: We need to box identify::Event but we are on stable so no boxed patterns.
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -230,6 +254,8 @@ pub enum NockchainEvent {
     RequestResponse(request_response::Event<NockchainRequest, NockchainResponse>),
     /// Peer store events
     PeerStore(libp2p::peer_store::memory_store::Event),
+    /// Upnp events
+    Upnp(upnp::Event),    
 }
 
 impl From<identify::Event> for NockchainEvent {
@@ -267,6 +293,14 @@ impl From<libp2p::peer_store::memory_store::Event> for NockchainEvent {
         Self::PeerStore(event)
     }
 }
+
+
+impl From<upnp::Event> for NockchainEvent {
+    fn from(event: upnp::Event) -> Self {
+        Self::Upnp(event)
+    }
+}
+
 
 ///** Handler for "identify" messages */
 //#[instrument(skip(swarm))]

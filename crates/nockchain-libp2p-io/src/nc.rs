@@ -264,7 +264,7 @@ pub fn make_libp2p_driver(
                             _ => {
                                 // Handle other swarm events
                                 trace!("SEvent: other swarm event {:?}", event);
-                            }
+                            },                            
                         }
                     },
                     Some(swarm_action) = swarm_rx.recv() => {
