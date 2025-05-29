@@ -106,7 +106,7 @@ pub struct NockchainBehaviour {
     /// Actual comms
     pub request_response: cbor::Behaviour<NockchainRequest, NockchainResponse>,
     /// NAT UPNP support
-    pub upnp: upnp::tokio::Behaviour,
+    pub upnp: upnp::tokio::Behaviour
 }
 
 impl NockchainBehaviour {
@@ -171,8 +171,6 @@ impl NockchainBehaviour {
     }
 }
 
-use std::net::{IpAddr, SocketAddr};
-use libp2p::multiaddr::Protocol;
 /// # Create a swarm and set it to listen
 ///
 /// This function initializes a libp2p swarm with the provided keypair and binding addresses.
@@ -185,23 +183,7 @@ use libp2p::multiaddr::Protocol;
 /// # Returns
 /// A Result containing the Swarm instance or an error if any operation fails
 
-/// Converts a Multiaddr to a SocketAddr if possible.
-fn multiaddr_to_socketaddr(addr: &Multiaddr) -> Result<SocketAddr, std::io::Error> {
-    let mut ip = None;
-    let mut port = None;
-    for p in addr.iter() {
-        match p {
-            Protocol::Ip4(ipv4) => ip = Some(IpAddr::V4(ipv4)),
-            Protocol::Ip6(ipv6) => ip = Some(IpAddr::V6(ipv6)),
-            Protocol::Tcp(p) => port = Some(p),
-            _ => {}
-        }
-    }
-    match (ip, port) {
-        (Some(ip), Some(port)) => Ok(SocketAddr::new(ip, port)),
-        _ => Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid Multiaddr")),
-    }
-}
+
 pub fn start_swarm(
     keypair: Keypair,
     bind: Vec<Multiaddr>,
